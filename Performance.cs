@@ -58,9 +58,11 @@ namespace PtSim
         private Dictionary<int, float> _totalProfitMonth; // 各月の総利益
         private Dictionary<int, float> _totalWinTradesMonth; // 各月の勝率
         private Dictionary<int, float> _totalMaxDrowDownYear; // 各年の最大ドローダウン
+        private Dictionary<int, float> _totalMaxBookDrowDownYear; // 各年の簿価最大ドローダウン
         private Dictionary<int, float> _totalMaxMarketDrowDownYear; // 各年の時価最大ドローダウン
         private Dictionary<int, float> _totalWinMaxProfitYear; // 各年の勝ちトレード最大利益
         private Dictionary<int, float> _totalLoseMaxProfitYear; // 各年の負けトレード最大損失
+        private Dictionary<int, DateTime> _maxBookDrowDawnDate; // Max簿価DDのトレードの日付
         private Dictionary<int, DateTime> _maxMarketDrowDawnDate; // Max時価DDのトレードの日付
         private Dictionary<int, float> _totalMaxDrowDownMonth; // 各月の最大ドローダウン
         private Dictionary<int, float> _totalWinMaxProfitMonth; // 各月の勝ちトレード最大利益
@@ -93,9 +95,11 @@ namespace PtSim
             _totalProfitMonth = new Dictionary<int, float>();
             _totalWinTradesMonth = new Dictionary<int, float>();             
             _totalMaxDrowDownYear = new Dictionary<int, float>(); 
+            _totalMaxBookDrowDownYear = new Dictionary<int, float>(); 
             _totalMaxMarketDrowDownYear = new Dictionary<int, float>(); 
             _totalWinMaxProfitYear = new Dictionary<int, float>(); 
             _totalLoseMaxProfitYear = new Dictionary<int, float>();
+            _maxBookDrowDawnDate = new Dictionary<int, DateTime>();
             _maxMarketDrowDawnDate = new Dictionary<int, DateTime>();
             _totalMaxDrowDownMonth = new Dictionary<int, float>(); 
             _totalWinMaxProfitMonth = new Dictionary<int, float>(); 
@@ -268,6 +272,11 @@ namespace PtSim
                 if (totalSell < totalBuy) // 負け
                 {
                     _totalMaxDrowDownYear[year] = Math.Min(_totalMaxDrowDownYear[year], ratio);
+                    if (_totalMaxBookDrowDownYear[year] > totalSell - totalBuy)
+                    {
+                         _totalMaxBookDrowDownYear[year] = totalSell - totalBuy;
+                         _maxBookDrowDawnDate[year] = date;
+                    }
                     _totalMaxDrowDownMonth[T(year, month - 1)] = Math.Min(_totalMaxDrowDownMonth[T(year, month - 1)], ratio);
                 }
                 if (_totalMaxMarketDrowDownYear[year] > dailyprofit.Market)
@@ -310,6 +319,8 @@ namespace PtSim
                 {
                     _totalMaxDrowDownYear.Add(year, ratio);
                     _totalMaxDrowDownMonth[T(year, month - 1)] = ratio;
+                    _totalMaxBookDrowDownYear.Add(year, dailyprofit.Market);
+                    _maxBookDrowDawnDate[year] = date;
                     _totalMaxMarketDrowDownYear.Add(year, dailyprofit.Market);
                     _maxMarketDrowDawnDate[year] = date;
 
@@ -317,7 +328,9 @@ namespace PtSim
                 else
                 {
                     _totalMaxDrowDownYear.Add(year, 0);
+                    _totalMaxBookDrowDownYear.Add(year, 0);
                     _totalMaxMarketDrowDownYear.Add(year, 0);
+                    _maxBookDrowDawnDate[year] = date;
                     _maxMarketDrowDawnDate[year] = date;
                 }
             }
@@ -477,20 +490,6 @@ namespace PtSim
             appendText(string.Format(
                            "----------------------------------------\n" +
                            "[年度別レポート]\n"));
-#if true
-            appendText(string.Format("年度\t取引回数\t運用損益\t勝率\tPF\t最大DD\t最大DD(時価)\n"));
-            foreach (KeyValuePair<int, float> pair in list)
-            {
-                appendText(string.Format(
-                    "{0}年\t{1,5}回\t\t{2:c}円\t{3,6:p}\t{4,5:n}倍\t{5,6:p}\t{6:c}円({7})\n",
-                        pair.Key, pair.Value, _totalProfitYear[pair.Key],
-                        _totalWinTradesYear[pair.Key] / pair.Value,
-                        Math.Abs(_totalWinMaxProfitYear[pair.Key] / _totalLoseMaxProfitYear[pair.Key]),
-                        _totalMaxDrowDownYear[pair.Key], _totalMaxMarketDrowDownYear[pair.Key],
-                        _maxMarketDrowDawnDate[pair.Key].ToString("yyyy/MM/dd")
-                    ));
-            }
-#else
             appendText(string.Format("年度\t取引回数\t運用損益\t年利\t勝率\tPF\t最大DD\n"));
             foreach (KeyValuePair<int, float> pair in list)
             {
@@ -503,7 +502,21 @@ namespace PtSim
                         _totalMaxDrowDownYear[pair.Key]
                     ));
             }
-#endif            
+            appendText(string.Format(
+                           "----------------------------------------\n" +
+                           "[年度別ドローダウンレポート]\n"));
+            appendText(string.Format("年度\t\t最大DD(簿価)\t\t\t最大DD(時価)\n"));
+            foreach (KeyValuePair<int, float> pair in list)
+            {
+                appendText(string.Format(
+                    "{0}年\t\t{1:c}({2})\t\t{3:c}({4})\n",
+                        pair.Key,
+                        (_totalMaxBookDrowDownYear[pair.Key]),
+                        _maxBookDrowDawnDate[pair.Key].ToString("yyyy/MM/dd"),
+                        (_totalMaxMarketDrowDownYear[pair.Key]),
+                        _maxMarketDrowDawnDate[pair.Key].ToString("yyyy/MM/dd")
+                    ));
+            }
             appendText(string.Format(
                            "----------------------------------------\n" +
                            "[月別レポート]\n"));
@@ -514,7 +527,7 @@ namespace PtSim
                 for (int i = 12 - 1; i >= 0; i--)
                 {
                     appendText(string.Format(
-                                   "   {0,2}月\t{1,5}回\t\t{2:c}円\t{3,6:p}\t{4,5:n}倍\t{5,6:p}\n",
+                                   "{0,2}月\t{1}回\t\t{2:c}円\t{3,6:p}\t{4,5:n}倍\t{5,6:p}\n",
                                    i + 1, _allTradesMonth[T(pair.Key, i)], _totalProfitMonth[T(pair.Key, i)],
                                    _totalWinTradesMonth[T(pair.Key, i)] / _allTradesMonth[T(pair.Key, i)],
                                    Math.Abs(_totalWinMaxProfitMonth[T(pair.Key, i)] / _totalLoseMaxProfitMonth[T(pair.Key, i)]),
