@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program; if not, see <http://www.gnu.org/licenses/>.
 // 
-// $Id$
+// $Id: MainForm.cs 503 2014-02-10 06:10:07Z panacoran $
 
 using System;
 using System.Collections.Generic;
@@ -42,6 +42,7 @@ namespace PtSim
     public partial class MainForm : Form
     {
         private string _name;
+        private DateTime _startTime;
 
         /// <summary>
         /// アプリケーションのメインエントリポイント
@@ -78,6 +79,7 @@ namespace PtSim
             dateTimePickerHistoryFrom.Value = DateTime.Now.AddMonths(-1); //履歴の開始を1ヶ月前に設定する。
             ptFileTreeView.RootDirectory = Global.DirSystem; // システム一覧を更新する。
             ptFileTreeView.SelectedFile = config.SystemFile;
+            _startTime = DateTime.MaxValue;
         }
 
         private void BrandListInit()
@@ -241,6 +243,7 @@ namespace PtSim
             var brandList = comboBoxBrandList.SelectedItem;
             if (system == null || brandList == null)
                 return;
+            _startTime = DateTime.Now;
             buttonExecute.Text = "中断";
             SetEnabled(EnableFlags.Execute);
             textBoxExecute.Clear();
@@ -277,6 +280,7 @@ namespace PtSim
 
         private void backgroundWorkerExecute_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
+            var config = GlobalEnv.PtSimConfig;
             if (e.Error != null)
                 textBoxExecute.AppendText(e.Error.Message + "\r\nエラーが発生したので実行を中断します。");
             else if (e.Cancelled)
@@ -290,10 +294,21 @@ namespace PtSim
             }
             {
                 // ファイルに書き出しをする
-                File.WriteAllText(@".\data\log\lasttrading.txt", textBoxExecute.Text);
-                DateTime dt = DateTime.Now;
-                String filePath = @".\data\log\trading_" + _name + "_" + dt.ToString("yyyyMMddHHmmss") + ".txt";
-                File.WriteAllText(filePath, textBoxExecute.Text);
+                DateTime _endTime = DateTime.Now;
+                TimeSpan ts = _endTime - _startTime;
+                File.WriteAllText(@".\data\log\lasttrading.txt",
+                         "実行時間 = " + (int)ts.Days + "日" +
+                                         (int)ts.Hours + "時間" +
+                                         (int)ts.Minutes + "分" +
+                                         (int)ts.Seconds + "秒\r\n" +
+                         textBoxExecute.Text);
+                String filePath = @".\data\log\trading_" + _name + "_" + _endTime.ToString("yyyyMMddHHmmss") + ".txt";
+                File.WriteAllText(filePath, 
+                         "実行時間 = " + (int)ts.Days + "日" +
+                                         (int)ts.Hours + "時間" +
+                                         (int)ts.Minutes + "分" +
+                                         (int)ts.Seconds + "秒\r\n" +
+                         textBoxExecute.Text);
             }
             Cursor = Cursors.Arrow;
             buttonExecute.Text = "実行";
@@ -302,6 +317,10 @@ namespace PtSim
                 SetEnabled(EnableFlags.All);
             else
                 SetEnabled(EnableFlags.DeleteLogAll | EnableFlags.EditBrandList);
+            if (config.Autoclose)
+            {
+               Application.Exit();
+            }
         }
 
         private void buttonPerformance_Click(object sender, EventArgs e)
@@ -408,6 +427,34 @@ namespace PtSim
             if (i == 0)
                 return;
             Clipboard.SetDataObject(string.Concat(rows));
+        }
+
+        private void MainForm_Shown(object sender, EventArgs e)
+        {
+            var config = GlobalEnv.PtSimConfig;
+            if (config.Autoclose)
+            {
+                if (backgroundWorkerExecute.IsBusy)
+                {
+                    backgroundWorkerExecute.CancelAsync();
+                    Cursor = Cursors.WaitCursor;
+                    buttonExecute.Enabled = false;
+                    return;
+                }
+                var system = ptFileTreeView.SelectedFile;
+                var brandList = comboBoxBrandList.SelectedItem;
+                if (system == null || brandList == null)
+                    return;
+                buttonExecute.Text = "中断";
+                SetEnabled(EnableFlags.Execute);
+                textBoxExecute.Clear();
+                backgroundWorkerExecute.RunWorkerAsync(new[] { system, brandList, TimeFrame });
+            }
+        }
+
+        private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }
