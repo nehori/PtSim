@@ -121,6 +121,27 @@ namespace PtSim
                 return null;
             _firstTrade = profits.Dates[0];
             _lastTrade = profits.Dates[profits.Count - 1];
+
+            // 実取引が最初にあった日を探す
+            for (int i = 0; i < profits.Count; i++)
+            {
+                if (profits[i].Market != 0.0)
+                {
+                    _firstTrade = profits.Dates[i];
+                    break;
+                }
+            }
+
+            // 実取引が最後にあった日を探す
+            for (int i = (profits.Count - 1); i > 0; i--)
+            {
+                if (profits[i].Book != profits[(i - 1)].Book)
+                {
+                    _lastTrade = profits.Dates[i];
+                    break;
+                }
+            }
+
             PrintResult(appendText);
             return profits;
         }
@@ -162,6 +183,8 @@ namespace PtSim
                         var dailyProfit = profits[price.Date];
                         var dailyValue = positionValues[price.Date];
                         var close = price.Close;
+//                        if (position != 0 && close > 0 && prevClose > 0)
+//                            dailyProfit.AddMarket(position, close - prevClose); // 時価の前日比を加算する。
                         if (position != 0 && close > 0 && prevClose > 0)
                             dailyProfit.AddMarket(position, close - prevClose); // 時価の前日比を加算する。
                         if (close > 0)
@@ -169,6 +192,7 @@ namespace PtSim
                         if (price.High > 0)
                             prevHigh = price.High;
                         dailyValue.AddMarket(Math.Abs(position), prevHigh);
+//                        dailyValue.AddMarket(Math.Abs(position), prevHigh);
                         Log log;
                         if (logIndex == logs.Count || logs[logIndex].Date != price.Date || // 売買が発生しない。
                             (log = logs[logIndex++]).Quantity == 0) // 0株の売買は無視する。
@@ -181,11 +205,15 @@ namespace PtSim
                             totalBuy += consideration;
                             if (close > 0)
                                 dailyProfit.AddMarket(log.Quantity, close - log.Price);
+//                            if (close > 0)
+//                                dailyProfit.AddMarket(log.Quantity, close - log.Price);
                         }
                         else
                         {
                             position -= log.Quantity;
                             totalSell += consideration;
+//                            if (close > 0)
+//                                dailyProfit.AddMarket(log.Quantity, log.Price - close);
                             if (close > 0)
                                 dailyProfit.AddMarket(log.Quantity, log.Price - close);
                         }
